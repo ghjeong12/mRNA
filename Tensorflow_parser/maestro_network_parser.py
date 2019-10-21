@@ -21,6 +21,9 @@ maxPoolPath = "param/maxpool.txt"
 reluFcPath = "param/relufc.txt"
 rnnPath = "param/rnn.txt"
 
+network_id = "vgg16"
+dataflow_path = "./DFSL_description/vgg16_dla_df.m"
+dataflow_map = {}
 
 
 
@@ -153,6 +156,32 @@ def extractNetwork(tfFile, python_path='',debug=False):
         newFile = ''
         tree_modifier = {'conv2d': parseConv, 'relufc': parseReluFc, 'maxpool': parserMaxpool, 'rnn': parserRnn}
         path_map = {'conv2d': convPath, 'relufc': reluFcPath, 'maxpool': maxPoolPath, 'rnn': rnnPath}
+
+        with open(dataflow_path, 'r') as dfsl_file:
+            file = dfsl_file.readlines()
+            layer_name = ''
+            dataflow_content = ''
+            readNext = False
+            for line in file:
+                if(line.split(' ')[0] == "Layer"):
+                    layer_name = line.split(' ')[1]
+                    print("Setting layer name as " + layer_name)
+
+                if(line.split(' ')[0] == "Dataflow"):
+                    readNext=True;
+
+                elif(readNext):
+                    print("check:" + line)
+                    print(line.split(' ')[-1])
+                    _, sentence = getTab(line)
+                    if(sentence == "}"):
+                        readNext = False;
+                        print(layer_name)
+                        print(dataflow_content)
+                        dataflow_map[layer_name] = dataflow_content
+                        dataflow_content = ''
+                    else:
+                        dataflow_content += line
         # claer files
         for path in path_map.values():
             open(path, 'w')
@@ -258,6 +287,7 @@ def modify_format(modelName):
                     + ',Y ' + op['output_y']
                     + ',X ' + op['output_x'] + ' }\n')
             f2.write('Dataflow {\n')
+            f2.write(dataflow_map[layer_type+layer_number])
             f2.write('}\n}\n\n')
 
     def modify_conv():
@@ -336,5 +366,16 @@ def modify_format(modelName):
 if os.path.exists('param'):
     shutil.rmtree('param')
 os.mkdir('param')
+
 extractNetwork(network_path,python_path,True)
+
+
+with open("result.m", 'a') as f2:
+    f2.write('Network ' + network_id + ' {\n')
+
 modify_format(network_name)
+
+with open("result.m", 'a') as f2:
+    f2.write('}')
+
+
